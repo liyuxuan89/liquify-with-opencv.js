@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>Opencv.js play ground</title>
+    <style>
+        :root{
+            --main-color: rgb(0, 149, 211);
+        }
+        body{
+            margin: 0;
+            background-color: var(--main-color);
+            color: white;
+        }
+        #main-container{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #canvas-container{
+            position: relative;
+            min-height: 500px;
+            min-width: 500px;
+        }
+        canvas{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+<div id="main-container">
+    <div class="title">
+        <h1>Opencv.js play ground</h1>
+    </div>
+    <div id="canvas-container">
+        <canvas id="image-canvas" width="500px" height="500px"></canvas>
+        <canvas id="test-canvas" width="100px" height="100px"></canvas>
+    </div>
+</div>
+<script src="opencv.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>
