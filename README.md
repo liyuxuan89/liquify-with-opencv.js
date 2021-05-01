@@ -6,5 +6,5 @@ Liquifying is a common operation in Photoshop which can morph image according to
 
 ## Demonstration
 
-<video src="./images/display.mp4">
+<video src="https://github.com/liyuxuan89/liquify-with-opencv.js/blob/main/images/display.mp4">
 
