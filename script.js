@@ -1,7 +1,5 @@
 let canvas = document.getElementById("image-canvas")
 let ctx = canvas.getContext('2d')
-let canvas_test = document.getElementById("test-canvas")
-let ctx_text = canvas_test.getContext('2d')
 
 let imgMat
 let scale
@@ -9,10 +7,12 @@ let pred_dx
 let pred_dy
 let pred_dw
 let pred_dh
-let liquifying
-let radius
+let radius = 100
 let distanceMat
 let start_x, start_y
+let width = radius * 2 + 1
+let mat_x = new cv.Mat(width, width, cv.CV_32FC1)
+let mat_y = new cv.Mat(width, width, cv.CV_32FC1)
 
 var img=new Image();	
 img.src='./test.jpg';
@@ -28,16 +28,15 @@ img.onload=function(){
     pre_dh = img.height * scale;
     ctx.drawImage(img, 0, 0, img.width, img.height, pre_dx, pre_dy, pre_dw, pre_dh);
     //初始化距离图
-    radius = 50
-    distanceMat = getDistanceMap(radius)
+    getDistanceMap(radius)
     imgMat = new cv.Mat()
     let src = cv.imread(img)
     cv.copyMakeBorder(src, imgMat, radius+1, radius+1, radius+1, radius+1, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 255));
     src.delete()
+    console.log('load complete')
 }
 
 canvas.addEventListener('mousedown', e=>{
-    liquifying = true
     var {x, y} = getLocation(e.x, e.y);
     var {x_i, y_i} = toImageLocation(x, y);
     start_x = x_i
@@ -45,16 +44,18 @@ canvas.addEventListener('mousedown', e=>{
 })
 
 canvas.addEventListener('mouseup', e=>{
-    liquifying = false
-    let width = radius * 2 + 1
     var {x, y} = getLocation(e.x, e.y);
     var {x_i, y_i} = toImageLocation(x, y);
-    // calculation remaping
-    let mat_x = new cv.Mat(width, width, cv.CV_32FC1)
-    let mat_y = new cv.Mat(width, width, cv.CV_32FC1)
+    // calculating remaping
     let x_offset = x_i - start_x
     let y_offset = y_i - start_y
-
+    let dis = Math.sqrt(x_offset**2 + y_offset**2)
+    if(dis >= radius * 0.5){
+        x_offset = x_offset / dis * radius * 0.5
+        y_offset = y_offset / dis * radius * 0.5
+        console.log('fuck')
+        console.log(x_offset, y_offset)
+    }
     for(let x = 0; x < width; x++) {
         for(let y = 0; y < width; y++) {
             let pixel_x = mat_x.floatPtr(y, x)
@@ -64,24 +65,18 @@ canvas.addEventListener('mouseup', e=>{
             pixel_y[0] = y - y_offset * pixel[0]
         }
     }
-    let rect = new cv.Rect(Math.ceil(start_x) - radius, Math.ceil(start_y) - radius, width, width)
+    let rect = new cv.Rect(Math.ceil(x_i) - radius, Math.ceil(y_i) - radius, width, width)
     let roi = imgMat.roi(rect)
-    let roiClone = roi.clone()
-    cv.remap(roiClone, roi, mat_x, mat_y, cv.INTER_LINEAR, cv.BORDER_CONSTANT)
-    mat_x.delete()
-    mat_y.delete()
+    cv.remap(roi, roi, mat_x, mat_y, cv.INTER_LINEAR, cv.BORDER_CONSTANT)
     roi.delete()
-    roiClone.delete()
-    
     rect = new cv.Rect(radius+1, radius+1, imgMat.cols-2*radius-2, imgMat.rows-2*radius-2)
-    let center = imgMat.roi(rect).clone()
+    let center = imgMat.roi(rect)
     let size = new cv.Size(pre_dw, pre_dh)
-    cv.resize(center.clone(), center, size, 0, 0, cv.INTER_AREA)
-
+    cv.resize(center, center, size, 0, 0, cv.INTER_AREA)
     let imageData = ctx.createImageData(center.cols, center.rows);
     imageData.data.set(new Uint8ClampedArray(center.data, center.cols, center.rows));
-
     ctx.putImageData(imageData, pre_dx, pre_dy);
+    center.delete()
     console.log(x_offset, y_offset)
 })
 
@@ -107,12 +102,12 @@ function getDistanceMap(radius) {
         for(let y = 0; y < width; y++) {
             let pixel = mat.floatPtr(y, x)
             let dis = (x - radius)**2 + (y - radius)**2
-            let ratio = 1 - (dis / (radius**2))
+            let ratio = 1 - Math.sqrt((dis / (radius**2)))
             if(ratio < 0) {
                 ratio = 0
             }
             pixel[0] = ratio
         }
     }
-    return mat
+    distanceMat = mat
 }
