@@ -7,7 +7,7 @@ let pred_dx
 let pred_dy
 let pred_dw
 let pred_dh
-let radius = 100
+let radius = 200
 let distanceMat
 let start_x, start_y
 let width = radius * 2 + 1
@@ -15,7 +15,7 @@ let mat_x = new cv.Mat(width, width, cv.CV_32FC1)
 let mat_y = new cv.Mat(width, width, cv.CV_32FC1)
 
 var img=new Image();	
-img.src='./test.jpg';
+img.src='./model.jpg';
 img.onload=function(){
     //绘图
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -50,9 +50,9 @@ canvas.addEventListener('mouseup', e=>{
     let x_offset = x_i - start_x
     let y_offset = y_i - start_y
     let dis = Math.sqrt(x_offset**2 + y_offset**2)
-    if(dis >= radius * 0.5){
-        x_offset = x_offset / dis * radius * 0.5
-        y_offset = y_offset / dis * radius * 0.5
+    if(dis >= radius * 0.95){
+        x_offset = x_offset / dis * radius * 0.95
+        y_offset = y_offset / dis * radius * 0.95
         console.log('fuck')
         console.log(x_offset, y_offset)
     }
