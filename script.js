@@ -31,7 +31,7 @@ img.onload=function(){
     getDistanceMap(radius)
     imgMat = new cv.Mat()
     let src = cv.imread(img)
-    cv.copyMakeBorder(src, imgMat, radius+1, radius+1, radius+1, radius+1, cv.BORDER_CONSTANT, new cv.Scalar(0, 0, 0, 255));
+    cv.copyMakeBorder(src, imgMat, radius+1, radius+1, radius+1, radius+1, cv.BORDER_REPLICATE, new cv.Scalar(0, 0, 0, 255));
     src.delete()
     console.log('load complete')
 }
@@ -102,7 +102,7 @@ function getDistanceMap(radius) {
         for(let y = 0; y < width; y++) {
             let pixel = mat.floatPtr(y, x)
             let dis = (x - radius)**2 + (y - radius)**2
-            let ratio = 1 - Math.sqrt((dis / (radius**2)))
+            let ratio = 1 - (dis / (radius**2)) ** 0.5
             if(ratio < 0) {
                 ratio = 0
             }
