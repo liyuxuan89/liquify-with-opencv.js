@@ -7,12 +7,15 @@ let pred_dx
 let pred_dy
 let pred_dw
 let pred_dh
-let radius = 200
-let distanceMat
+let radius = 300
+let liquifying = false
+// let distanceMat
 let start_x, start_y
 let width = radius * 2 + 1
 let mat_x = new cv.Mat(width, width, cv.CV_32FC1)
 let mat_y = new cv.Mat(width, width, cv.CV_32FC1)
+let mat_one = cv.Mat.ones(width, width, cv.CV_32FC1)
+let mat_zero = cv.Mat.zeros(width, width, cv.CV_32FC1)
 
 var img=new Image();	
 img.src='./model.jpg';
@@ -28,7 +31,15 @@ img.onload=function(){
     pre_dh = img.height * scale;
     ctx.drawImage(img, 0, 0, img.width, img.height, pre_dx, pre_dy, pre_dw, pre_dh);
     //初始化距离图
-    getDistanceMap(radius)
+    // getDistanceMap(radius)
+    for(let x = 0; x < width; x++) {
+        for(let y = 0; y < width; y++) {
+            let pixel_x = mat_x.floatPtr(y, x)
+            let pixel_y = mat_y.floatPtr(y, x)
+            pixel_x[0] = x
+            pixel_y[0] = y
+        }
+    }
     imgMat = new cv.Mat()
     let src = cv.imread(img)
     cv.copyMakeBorder(src, imgMat, radius+1, radius+1, radius+1, radius+1, cv.BORDER_REPLICATE, new cv.Scalar(0, 0, 0, 255));
@@ -37,38 +48,52 @@ img.onload=function(){
 }
 
 canvas.addEventListener('mousedown', e=>{
+    liquifying = true
     var {x, y} = getLocation(e.x, e.y);
     var {x_i, y_i} = toImageLocation(x, y);
     start_x = x_i
     start_y = y_i
 })
 
+
 canvas.addEventListener('mouseup', e=>{
+    liquifying = true
+    var begin=new Date();
     var {x, y} = getLocation(e.x, e.y);
     var {x_i, y_i} = toImageLocation(x, y);
     // calculating remaping
     let x_offset = x_i - start_x
     let y_offset = y_i - start_y
     let dis = Math.sqrt(x_offset**2 + y_offset**2)
-    if(dis >= radius * 0.95){
-        x_offset = x_offset / dis * radius * 0.95
-        y_offset = y_offset / dis * radius * 0.95
-        console.log('fuck')
-        console.log(x_offset, y_offset)
+    if(dis >= radius * 0.3){
+        x_offset = x_offset / dis * radius * 0.3
+        y_offset = y_offset / dis * radius * 0.3
     }
-    for(let x = 0; x < width; x++) {
-        for(let y = 0; y < width; y++) {
-            let pixel_x = mat_x.floatPtr(y, x)
-            let pixel_y = mat_y.floatPtr(y, x)
-            let pixel = distanceMat.floatPtr(y, x)
-            pixel_x[0] = x - x_offset * pixel[0]
-            pixel_y[0] = y - y_offset * pixel[0]
-        }
-    }
-    let rect = new cv.Rect(Math.ceil(x_i) - radius, Math.ceil(y_i) - radius, width, width)
+    let dis_x = new cv.Mat()
+    let dis_y = new cv.Mat()
+    cv.addWeighted(mat_x, 1, mat_one, -radius, 0, dis_x)
+    cv.addWeighted(mat_y, 1, mat_one, -radius, 0, dis_y)
+    let ratio = new cv.Mat()
+    cv.addWeighted(dis_x.mul(dis_x, 1), 1, dis_y.mul(dis_y, 1), 1, 0, ratio)
+    cv.divide(ratio, mat_one, ratio, 1/radius**2)
+    cv.addWeighted(mat_one, 1, ratio, -1, 0, ratio)
+    cv.max(ratio, mat_zero, ratio)
+    let map_x = new cv.Mat()
+    let map_y = new cv.Mat()
+    cv.subtract(mat_x, ratio.mul(mat_one, x_offset), map_x)
+    cv.subtract(mat_y, ratio.mul(mat_one, y_offset), map_y)
+
+    let rect = new cv.Rect(Math.ceil(start_x) - radius, Math.ceil(start_y) - radius, width, width)
     let roi = imgMat.roi(rect)
-    cv.remap(roi, roi, mat_x, mat_y, cv.INTER_LINEAR, cv.BORDER_CONSTANT)
+    cv.remap(roi, roi, map_x, map_y, cv.INTER_LINEAR, cv.BORDER_CONSTANT)
     roi.delete()
+    dis_x.delete()
+    dis_y.delete()
+    map_x.delete()
+    map_y.delete()
+    ratio.delete()
+
+
     rect = new cv.Rect(radius+1, radius+1, imgMat.cols-2*radius-2, imgMat.rows-2*radius-2)
     let center = imgMat.roi(rect)
     let size = new cv.Size(pre_dw, pre_dh)
@@ -77,7 +102,9 @@ canvas.addEventListener('mouseup', e=>{
     imageData.data.set(new Uint8ClampedArray(center.data, center.cols, center.rows));
     ctx.putImageData(imageData, pre_dx, pre_dy);
     center.delete()
-    console.log(x_offset, y_offset)
+    var end=new Date();
+    var time=end-begin;
+    console.log("time is="+time);
 })
 
 function getLocation(x, y){
@@ -93,21 +120,4 @@ function toImageLocation(x, y){
         x_i: (x - pre_dx) / scale + radius + 1,
         y_i: (y - pre_dy) / scale + radius + 1
     };
-}
-
-function getDistanceMap(radius) {
-    let width = radius * 2 + 1
-    let mat = new cv.Mat(width, width, cv.CV_32FC1)
-    for(let x = 0; x < width; x++) {
-        for(let y = 0; y < width; y++) {
-            let pixel = mat.floatPtr(y, x)
-            let dis = (x - radius)**2 + (y - radius)**2
-            let ratio = 1 - (dis / (radius**2)) ** 0.5
-            if(ratio < 0) {
-                ratio = 0
-            }
-            pixel[0] = ratio
-        }
-    }
-    distanceMat = mat
 }
