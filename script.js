@@ -1,5 +1,7 @@
 let canvas = document.getElementById("image-canvas")
 let ctx = canvas.getContext('2d')
+let canvas_h = document.getElementById("hidden-canvas")
+let ctx_h = canvas.getContext('2d')
 
 let imgMat
 let scale
@@ -9,6 +11,7 @@ let pred_dw
 let pred_dh
 let radius = 300
 let liquifying = false
+let roi
 // let distanceMat
 let start_x, start_y
 let width = radius * 2 + 1
@@ -16,6 +19,12 @@ let mat_x = new cv.Mat(width, width, cv.CV_32FC1)
 let mat_y = new cv.Mat(width, width, cv.CV_32FC1)
 let mat_one = cv.Mat.ones(width, width, cv.CV_32FC1)
 let mat_zero = cv.Mat.zeros(width, width, cv.CV_32FC1)
+let dis_x = new cv.Mat()
+let dis_y = new cv.Mat()
+let ratio = new cv.Mat()
+let map_x = new cv.Mat()
+let map_y = new cv.Mat()
+
 
 var img=new Image();	
 img.src='./model.jpg';
@@ -29,7 +38,10 @@ img.onload=function(){
     pre_dy = (canvas.height - img.height * scale) / 2;
     pre_dw = img.width * scale;
     pre_dh = img.height * scale;
-    ctx.drawImage(img, 0, 0, img.width, img.height, pre_dx, pre_dy, pre_dw, pre_dh);
+    //ctx.drawImage(img, 0, 0, img.width, img.height, pre_dx, pre_dy, pre_dw, pre_dh);
+    ctx.scale(scale, scale)
+    ctx.translate(pre_dx/scale, pre_dy/scale)
+    ctx.drawImage(img, 0, 0)
     //初始化距离图
     // getDistanceMap(radius)
     for(let x = 0; x < width; x++) {
@@ -53,15 +65,40 @@ canvas.addEventListener('mousedown', e=>{
     var {x_i, y_i} = toImageLocation(x, y);
     start_x = x_i
     start_y = y_i
+    let rect = new cv.Rect(Math.ceil(start_x) - radius, Math.ceil(start_y) - radius, width, width)
+
+    roi = imgMat.roi(rect).clone()
+    dis_x = new cv.Mat()
+    dis_y = new cv.Mat()
+    ratio = new cv.Mat()
+    map_x = new cv.Mat()
+    map_y = new cv.Mat()
 })
 
+canvas.addEventListener('mousemove', e=>{
+    if(liquifying){
+        var {x, y} = getLocation(e.x, e.y);
+        var {x_i, y_i} = toImageLocation(x, y);
+        morph(start_x, start_y, x_i, y_i)
+    }
+})
 
 canvas.addEventListener('mouseup', e=>{
-    liquifying = true
-    var begin=new Date();
+    liquifying = false
     var {x, y} = getLocation(e.x, e.y);
     var {x_i, y_i} = toImageLocation(x, y);
+    morph(start_x, start_y, x_i, y_i)
+    roi.delete()
+    dis_x.delete()
+    dis_y.delete()
+    ratio.delete()
+    map_x.delete()
+    map_y.delete()
+})
+
+function morph(start_x, start_y, x_i, y_i) {
     // calculating remaping
+    var begin=new Date();
     let x_offset = x_i - start_x
     let y_offset = y_i - start_y
     let dis = Math.sqrt(x_offset**2 + y_offset**2)
@@ -69,35 +106,24 @@ canvas.addEventListener('mouseup', e=>{
         x_offset = x_offset / dis * radius * 0.3
         y_offset = y_offset / dis * radius * 0.3
     }
-    let dis_x = new cv.Mat()
-    let dis_y = new cv.Mat()
     cv.addWeighted(mat_x, 1, mat_one, -radius, 0, dis_x)
     cv.addWeighted(mat_y, 1, mat_one, -radius, 0, dis_y)
-    let ratio = new cv.Mat()
     cv.addWeighted(dis_x.mul(dis_x, 1), 1, dis_y.mul(dis_y, 1), 1, 0, ratio)
     cv.divide(ratio, mat_one, ratio, 1/radius**2)
     cv.addWeighted(mat_one, 1, ratio, -1, 0, ratio)
     cv.max(ratio, mat_zero, ratio)
-    let map_x = new cv.Mat()
-    let map_y = new cv.Mat()
     cv.subtract(mat_x, ratio.mul(mat_one, x_offset), map_x)
     cv.subtract(mat_y, ratio.mul(mat_one, y_offset), map_y)
 
     let rect = new cv.Rect(Math.ceil(start_x) - radius, Math.ceil(start_y) - radius, width, width)
-    let roi = imgMat.roi(rect)
-    cv.remap(roi, roi, map_x, map_y, cv.INTER_LINEAR, cv.BORDER_CONSTANT)
-    roi.delete()
-    dis_x.delete()
-    dis_y.delete()
-    map_x.delete()
-    map_y.delete()
-    ratio.delete()
-
+    roi_new = imgMat.roi(rect)
+    cv.remap(roi, roi_new, map_x, map_y, cv.INTER_LINEAR, cv.BORDER_CONSTANT)
+    roi_new.delete()
 
     rect = new cv.Rect(radius+1, radius+1, imgMat.cols-2*radius-2, imgMat.rows-2*radius-2)
     let center = imgMat.roi(rect)
     let size = new cv.Size(pre_dw, pre_dh)
-    cv.resize(center, center, size, 0, 0, cv.INTER_AREA)
+    cv.resize(center, center, size, 0, 0, cv.INTER_LINEAR)
     let imageData = ctx.createImageData(center.cols, center.rows);
     imageData.data.set(new Uint8ClampedArray(center.data, center.cols, center.rows));
     ctx.putImageData(imageData, pre_dx, pre_dy);
@@ -105,7 +131,7 @@ canvas.addEventListener('mouseup', e=>{
     var end=new Date();
     var time=end-begin;
     console.log("time is="+time);
-})
+}
 
 function getLocation(x, y){
     var bbox = canvas.getBoundingClientRect();
